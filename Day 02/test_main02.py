@@ -1,5 +1,7 @@
-def parse_play(playstring):
-    switch_playstring = {
+import pytest
+
+def parse_play(playstring: str) -> str:
+    switch_playstring: dict[str, str] = {
         "A": "ROCK",
         "X": "ROCK",
         "B": "PAPER",
@@ -7,25 +9,25 @@ def parse_play(playstring):
         "C": "SCISSORS",
         "Z": "SCISSORS"
     }
-    return switch_playstring.get(playstring)
+    return switch_playstring[playstring]
 
-def parse_outcome(outcomestring):
-    switch_outcomestring = {
+def parse_outcome(outcomestring: str) -> str:
+    switch_outcomestring: dict[str, str] = {
         "X": "LOSE",
         "Y": "DRAW",
         "Z": "WIN"
     }
-    return switch_outcomestring.get(outcomestring)    
+    return switch_outcomestring[outcomestring]
 
-def get_myselected_score(play):
-    switch_playscore = {
+def get_myselected_score(play: str) -> int:
+    switch_playscore: dict[str, int] = {
         "ROCK": 1,
         "PAPER": 2,
         "SCISSORS": 3,
     }
-    return switch_playscore.get(play)
+    return switch_playscore[play]
 
-def i_won(opponent_play, me_play):
+def i_won(opponent_play: str, me_play: str) -> bool:
     if me_play == "ROCK":
         if opponent_play == "SCISSORS":
             return True
@@ -37,7 +39,7 @@ def i_won(opponent_play, me_play):
             return True
     return False
 
-def get_outcome_score(opponent_play, me_play):
+def get_outcome_score(opponent_play: str, me_play: str) -> int:
     if opponent_play == me_play:
         return 3 # draw
     if i_won(opponent_play, me_play):
@@ -45,23 +47,18 @@ def get_outcome_score(opponent_play, me_play):
     else:
         return 0 # lost
 
-def score_by_strategy_guide(turn):
-    plays = turn.split()
+def score_by_strategy_guide(turn: str) -> int:
+    (opponent_str, me_str) = turn.split()
 
-    opponent = parse_play(plays[0])
-    me = parse_play(plays[1])
+    opponent = parse_play(opponent_str)
+    me = parse_play(me_str)
     
     return get_myselected_score(me) + get_outcome_score(opponent, me)
 
-def total_score_by_strategy_guide(game_list):
-    score = 0
+def total_score_by_strategy_guide(game_list: list[str]) -> int:
+    return sum([score_by_strategy_guide(turn) for turn in game_list])
 
-    for turn in game_list:
-        score += score_by_strategy_guide(turn)
-
-    return score
-
-def get_play(opponent, outcome):
+def get_play(opponent: str, outcome: str) -> str:
     if outcome == "DRAW":
         return opponent
     if outcome == "WIN":
@@ -79,39 +76,34 @@ def get_play(opponent, outcome):
         else:
             return "ROCK"
 
-def score_by_strategy_guide_v2(turn):
-    plays = turn.split()
+def score_by_strategy_guide_v2(turn: str) -> int:
+    (play_str, outcome_str) = turn.split()
 
-    opponent = parse_play(plays[0])
-    outcome = parse_outcome(plays[1])
+    opponent = parse_play(play_str)
+    outcome = parse_outcome(outcome_str)
     me = get_play(opponent, outcome)
     
     return get_myselected_score(me) + get_outcome_score(opponent, me)
 
-def total_score_by_strategy_guide_v2(game_list):
-    score = 0
+def total_score_by_strategy_guide_v2(game_list: list[str]) -> int:
+    return sum([score_by_strategy_guide_v2(turn) for turn in game_list])
 
-    for turn in game_list:
-        score += score_by_strategy_guide_v2(turn)
+@pytest.fixture
+def input_simple() -> list[str]:
+    return open('Day 02/input_simple.txt').readlines()
 
-    return score
+@pytest.fixture
+def input_long() -> list[str]:
+    return open('Day 02/input.txt').readlines()
 
-def test_day02_simple1():
-    with open('Day 02/input_simple.txt') as f:
-        input = f.readlines()
-    assert total_score_by_strategy_guide(input) == 15
+def test_day02_simple1(input_simple: list[str]) -> None:
+    assert total_score_by_strategy_guide(input_simple) == 15
 
-def test_day02_task1():
-    with open('Day 02/input.txt') as f:
-        input = f.readlines()
-    assert total_score_by_strategy_guide(input) == 12535    
+def test_day02_task1(input_long: list[str]) -> None:
+    assert total_score_by_strategy_guide(input_long) == 12535    
 
-def test_day02_simple2():
-    with open('Day 02/input_simple.txt') as f:
-        input = f.readlines()
-    assert total_score_by_strategy_guide_v2(input) == 12
+def test_day02_simple2(input_simple: list[str]) -> None:
+    assert total_score_by_strategy_guide_v2(input_simple) == 12
 
-def test_day02_task2():
-    with open('Day 02/input.txt') as f:
-        input = f.readlines()
-    assert total_score_by_strategy_guide_v2(input) == 15457 
+def test_day02_task2(input_long: list[str]) -> None:
+    assert total_score_by_strategy_guide_v2(input_long) == 15457 
