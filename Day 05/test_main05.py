@@ -1,43 +1,48 @@
 from typing import Callable
-from parse import * # type: ignore
+from parse import parse  # type: ignore # pylint: disable=redefined-builtin
 import pytest
 
+
 class Command:
-    def __init__(self, command_str: str) -> None:
-        (count_cmd, stack_from, stack_to) = search('move {:d} from {:d} to {:d}', command_str)  # type: ignore
+    def __init__(self, cmd_str: str) -> None:
+        (count_cmd, from_nr, to_nr) = parse('move {:d} from {:d} to {:d}', cmd_str.strip())  # type: ignore
         self.count: int = count_cmd
-        self.stack_from: int = stack_from
-        self.stack_to: int = stack_to
+        self.from_idx: int = from_nr - 1
+        self.to_idx: int = to_nr - 1
 
-def parse_commands(input_simple_commands: list[str]) -> list[Command]:
-    return [Command(command_str) for command_str in input_simple_commands]
 
-def move_one_by_one(stacks: list[list[str]], command: Command) -> None:
-    for _ in range(command.count):
-        stacks[command.stack_to-1].append(stacks[command.stack_from-1].pop())
+def parse_cmds(cmd_strs: list[str]) -> list[Command]:
+    return [Command(cmd_str) for cmd_str in cmd_strs]
 
-def move_complete_range(stacks: list[list[str]], command: Command) -> None:
-    stacks[command.stack_to-1].extend(stacks[command.stack_from-1][-command.count:])
-    del stacks[command.stack_from-1][len(stacks[command.stack_from-1]) -command.count:]        
 
-def whats_on_the_top_stacks(stacks: list[list[str]], command_strings: list[str], move_func: Callable[[list[list[str]], Command], None]) -> str:
-    commands: list[Command] = parse_commands(command_strings)
-    for command in commands:
-        move_func(stacks, command)
-    
-    return ''.join([stack[-1] for stack in stacks])    
+def move_one_by_one(stacks: list[list[str]], cmd: Command) -> None:
+    for _ in range(cmd.count):
+        stacks[cmd.to_idx].append(stacks[cmd.from_idx].pop())
 
-@pytest.fixture
-def input_simple_start() -> list[list[str]]:
-    stacks:list[list[str]] = []
+
+def move_complete_range(stacks: list[list[str]], cmd: Command) -> None:
+    stacks[cmd.to_idx].extend(stacks[cmd.from_idx][-cmd.count:])
+    del stacks[cmd.from_idx][-cmd.count:]
+
+
+def get_stacks_top_after_move_cmds(stacks: list[list[str]], cmd_strs: list[str], move_func: Callable[[list[list[str]], Command], None]) -> str:
+    for cmd in parse_cmds(cmd_strs):
+        move_func(stacks, cmd)
+    return ''.join([stack[-1] for stack in stacks])
+
+
+@pytest.fixture(name="simple_stacks")
+def simple_stacks_fixture() -> list[list[str]]:
+    stacks: list[list[str]] = []
     stacks.append(["Z", "N"])
     stacks.append(["M", "C", "D"])
     stacks.append(["P"])
     return stacks
 
-@pytest.fixture
-def input_long_start() -> list[list[str]]:
-    stacks:list[list[str]] = []
+
+@pytest.fixture(name="all_stacks")
+def all_stacks_fixture() -> list[list[str]]:
+    stacks: list[list[str]] = []
     stacks.append(["W", "D", "G", "B", "H", "R", "V"])
     stacks.append(["J", "N", "G", "C", "R", "F"])
     stacks.append(["L", "S", "F", "H", "D", "N", "J"])
@@ -47,24 +52,30 @@ def input_long_start() -> list[list[str]]:
     stacks.append(["F", "J", "B", "G", "L", "Z", "H", "C"])
     stacks.append(["S", "J", "R"])
     stacks.append(["L", "G", "S", "R", "B", "N", "V", "M"])
-    return stacks    
+    return stacks
 
-@pytest.fixture
-def input_simple_commands() -> list[str]:
-    return open('Day 05/input_simple.txt').readlines()
 
-@pytest.fixture
-def input_long_commands() -> list[str]:
-    return open('Day 05/input.txt').readlines()
+@pytest.fixture(name="simple_cmds")
+def simple_cmds_fixture() -> list[str]:
+    return open('Day 05/input_simple.txt', encoding="utf-8").readlines()
 
-def test_day05_simple1(input_simple_start: list[list[str]], input_simple_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks(input_simple_start, input_simple_commands, move_one_by_one) == "CMZ"
 
-def test_day05_task1(input_long_start: list[list[str]], input_long_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks(input_long_start, input_long_commands, move_one_by_one) == "JRVNHHCSJ"    
+@pytest.fixture(name="all_cmds")
+def all_cmds_fixture() -> list[str]:
+    return open('Day 05/input.txt', encoding="utf-8").readlines()
 
-def test_day05_simple2(input_simple_start: list[list[str]], input_simple_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks(input_simple_start, input_simple_commands, move_complete_range) == "MCD" 
 
-def test_day05_task2(input_long_start: list[list[str]], input_long_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks(input_long_start, input_long_commands, move_complete_range) == "GNFBSBJLH"        
+def test_day05_simple1(simple_stacks: list[list[str]], simple_cmds: list[str]) -> None:
+    assert get_stacks_top_after_move_cmds(simple_stacks, simple_cmds, move_one_by_one) == "CMZ"
+
+
+def test_day05_task1(all_stacks: list[list[str]], all_cmds: list[str]) -> None:
+    assert get_stacks_top_after_move_cmds(all_stacks, all_cmds, move_one_by_one) == "JRVNHHCSJ"
+
+
+def test_day05_simple2(simple_stacks: list[list[str]], simple_cmds: list[str]) -> None:
+    assert get_stacks_top_after_move_cmds(simple_stacks, simple_cmds, move_complete_range) == "MCD"
+
+
+def test_day05_task2(all_stacks: list[list[str]], all_cmds: list[str]) -> None:
+    assert get_stacks_top_after_move_cmds(all_stacks, all_cmds, move_complete_range) == "GNFBSBJLH"
