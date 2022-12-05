@@ -1,35 +1,31 @@
+from typing import Callable
+from parse import * # type: ignore
 import pytest
-import re
-import numpy
 
 class Command:
-    def __init__(self, count: str, stack_from:str, stack_to:str) -> None:
-        self.count: int = int(count)
-        self.stack_from: int = int(stack_from)
-        self.stack_to: int = int(stack_to)
-
-def parse_command(command_str: str) -> Command:
-    (_, count_str, _, from_str, _, to_str) = command_str.split()
-    return Command(count_str, from_str, to_str)
+    def __init__(self, command_str: str) -> None:
+        (count_cmd, stack_from, stack_to) = search('move {:d} from {:d} to {:d}', command_str)  # type: ignore
+        self.count: int = count_cmd
+        self.stack_from: int = stack_from
+        self.stack_to: int = stack_to
 
 def parse_commands(input_simple_commands: list[str]) -> list[Command]:
-    return [parse_command(command_str) for command_str in input_simple_commands]
+    return [Command(command_str) for command_str in input_simple_commands]
 
-def whats_on_the_top_stacks(input_simple_start: list[list[str]], input_simple_commands: list[str]) -> str:
-    commands = parse_commands(input_simple_commands)
-    for command in commands:
-        for _ in range(command.count):
-            input_simple_start[command.stack_to-1].append(input_simple_start[command.stack_from-1].pop())
-    
-    return ''.join([stack[-1] for stack in input_simple_start])
+def move_one_by_one(stacks: list[list[str]], command: Command) -> None:
+    for _ in range(command.count):
+        stacks[command.stack_to-1].append(stacks[command.stack_from-1].pop())
 
-def whats_on_the_top_stacks_v2(input_simple_start: list[list[str]], input_simple_commands: list[str]) -> str:
-    commands = parse_commands(input_simple_commands)
+def move_complete_range(stacks: list[list[str]], command: Command) -> None:
+    stacks[command.stack_to-1].extend(stacks[command.stack_from-1][-command.count:])
+    del stacks[command.stack_from-1][len(stacks[command.stack_from-1]) -command.count:]        
+
+def whats_on_the_top_stacks(stacks: list[list[str]], command_strings: list[str], move_func: Callable[[list[list[str]], Command], None]) -> str:
+    commands: list[Command] = parse_commands(command_strings)
     for command in commands:
-        input_simple_start[command.stack_to-1].extend(input_simple_start[command.stack_from-1][-command.count:])
-        del input_simple_start[command.stack_from-1][len(input_simple_start[command.stack_from-1]) -command.count:]
+        move_func(stacks, command)
     
-    return ''.join([stack[-1] for stack in input_simple_start])
+    return ''.join([stack[-1] for stack in stacks])    
 
 @pytest.fixture
 def input_simple_start() -> list[list[str]]:
@@ -62,13 +58,13 @@ def input_long_commands() -> list[str]:
     return open('Day 05/input.txt').readlines()
 
 def test_day05_simple1(input_simple_start: list[list[str]], input_simple_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks(input_simple_start, input_simple_commands) == "CMZ"
+    assert whats_on_the_top_stacks(input_simple_start, input_simple_commands, move_one_by_one) == "CMZ"
 
 def test_day05_task1(input_long_start: list[list[str]], input_long_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks(input_long_start, input_long_commands) == "JRVNHHCSJ"    
+    assert whats_on_the_top_stacks(input_long_start, input_long_commands, move_one_by_one) == "JRVNHHCSJ"    
 
 def test_day05_simple2(input_simple_start: list[list[str]], input_simple_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks_v2(input_simple_start, input_simple_commands) == "MCD" 
+    assert whats_on_the_top_stacks(input_simple_start, input_simple_commands, move_complete_range) == "MCD" 
 
 def test_day05_task2(input_long_start: list[list[str]], input_long_commands: list[str]) -> None:
-    assert whats_on_the_top_stacks_v2(input_long_start, input_long_commands) == "GNFBSBJLH"        
+    assert whats_on_the_top_stacks(input_long_start, input_long_commands, move_complete_range) == "GNFBSBJLH"        
