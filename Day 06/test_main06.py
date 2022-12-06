@@ -1,9 +1,8 @@
 import pytest
-import numpy
 
 
 def has_only_unique_chars(array: list[str]) -> bool:
-    unique_array: list[str] = numpy.unique(array)  # type: ignore
+    unique_array: list[str] = set(array)  # type: ignore
     return len(unique_array) == len(array)
 
 
