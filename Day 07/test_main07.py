@@ -1,7 +1,20 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Callable, Iterable, TypeVar
 import pytest
 from parse import parse  # type: ignore # pylint: disable=redefined-builtin
+
+# BEGIN missing things at Python, the language I don't like
+_T = TypeVar("_T")
+
+
+def first(__function: Callable[[_T], Any], __iterable: Iterable[_T]) -> _T:
+    """Need to create this as Python does not have something like this built-in"""
+    first_item: Any | None = next(filter(__function, __iterable), None)
+    if first_item is None:
+        raise Exception("No first item found with filter")
+    return first_item
+
+# END missing things at Python, the language I don't like
 
 
 class File:
@@ -28,85 +41,62 @@ class Folder:
     def size(self) -> int:
         return sum(child.size() for child in self.childs)
 
-    def __eq__(self, other: object) -> bool:
-        return self.name == other.name and self.parent == other.parent  # type: ignore
 
-    def __hash__(self) -> int:
-        return hash(('name', self.name))
-
-
-def parse_output(terminal_output: str) -> Folder:
+def parse_terminal_output(terminal_output: str) -> Folder:
     root: Folder = Folder("/", None, [])
     current_parent: Folder = root
 
     for line in terminal_output:
-        if line == "$ cd /\n":
+        line: str = line.strip()
+
+        if line == "$ cd /":
             current_parent: Folder = root
-            continue
-        if line == "$ cd ..\n":
-            current_parent: Folder = current_parent.parent  # type: ignore
-            continue
-        if line == "$ ls\n":
-            continue
-        if ls_dir := parse('dir {:w}\n', line):  # type: ignore
-            ls_dir = ls_dir[0]  # type: ignore
-            current_parent.childs.append(Folder(ls_dir, current_parent, []))  # type: ignore
-        if change_dir := parse('$ cd {:w}\n', line):  # type: ignore
-            change_dir = change_dir[0]  # type: ignore
-            current_parent = [child for child in current_parent.childs if child.name == change_dir][0]  # type: ignore
-        if result := parse('{:d} {}', line):  # type: ignore
-            (file_size, file_name) = result  # type: ignore
-            current_parent.childs.append(File(file_name, file_size))  # type: ignore
+        elif line == "$ cd ..":
+            if current_parent.parent:
+                current_parent: Folder = current_parent.parent
+            else:
+                raise Exception("Already at root folder")
+        elif parsed := parse('$ cd {dir_name:w}', line):
+            current_parent = [child for child in current_parent.childs if child.name == parsed["dir_name"]][0]  # type: ignore
+        elif line == "$ ls":
+            pass  # just ignore for now
+        elif parsed := parse('dir {dir_name:w}', line):
+            current_parent.childs.append(Folder(parsed["dir_name"], current_parent, []))  # type: ignore
+        elif parsed := parse('{file_size:d} {file_name}', line):
+            current_parent.childs.append(File(parsed["file_name"], parsed["file_size"]))  # type: ignore
 
     return root
 
 
-def sizeof_allfiles(terminal_output: str) -> int:
-    root_folder: Folder = parse_output(terminal_output)
-    return root_folder.size()
-
-
-def flatten(l: list[list[Any]]) -> list[Any]:
-    return [item for sublist in l for item in sublist]
-
-
-def filter_folders(folder: Folder, max_size_filter: int) -> list[Folder]:
-    child_folders = [child for child in folder.childs if isinstance(child, Folder) and child.size() <= max_size_filter]
-    child_child_folders = [filter_folders(child, max_size_filter) for child in folder.childs if isinstance(child, Folder)]
-
-    if folder.size() <= max_size_filter:
-        child_folders.append(folder)
-    return child_folders + flatten(child_child_folders)
+def flat_folders(folder: Folder) -> list[Folder]:
+    child_folders: list[Folder] = [child_child
+                                   for child in folder.childs if isinstance(child, Folder)
+                                   for child_child in flat_folders(child)]
+    return [folder] + child_folders
 
 
 def sizeof_folderswith_atmost100000(terminal_output: str) -> int:
-    root_folder: Folder = parse_output(terminal_output)
-    filtered_folders: list[Folder] = filter_folders(root_folder, 100000)
-    unique = set(filtered_folders)
-    return sum(folder.size() for folder in unique)
-
-
-def flat_folders(folder: Folder) -> list[Folder]:
-    child_folders: list[Folder] = [child for child in folder.childs if isinstance(child, Folder)]
-    child_child_folders: list[list[Folder]] = [flat_folders(child) for child in child_folders]
-
-    child_folders.append(folder)
-    return child_folders + flatten(child_child_folders)
+    root_folder: Folder = parse_terminal_output(terminal_output)
+    flatten_folders: list[Folder] = flat_folders(root_folder)
+    return sum(folder.size() for folder in flatten_folders if folder.size() <= 100000)
 
 
 def sizeof_folder_todelete(terminal_output: str) -> int:
-    root_folder: Folder = parse_output(terminal_output)
+    root_folder: Folder = parse_terminal_output(terminal_output)
+
     disk_space: int = 70000000
     required_space: int = 30000000
     needed_space: int = required_space - (disk_space - root_folder.size())
 
     flatten_folders: list[Folder] = flat_folders(root_folder)
+    flatten_folders.sort(key=lambda f: f.size())
 
-    def size(folder: Folder) -> int:
-        return folder.size()
-    flatten_folders.sort(key=size)
-
-    return [folder for folder in flatten_folders if folder.size() >= needed_space][0].size()
+    # Ugly Python version 1: return [folder for folder in flatten_folders if folder.size() >= needed_space][0].size()
+    # Ugly Python version 2: return [folder.size() for folder in flatten_folders if folder.size() >= needed_space][0]
+    # Ugly Python version 3: return next(folder.size() for folder in flatten_folders if folder.size() >= needed_space)
+    # Ugly Python version 4: return list(filter(lambda f: f.size() >= needed_space, flatten_folders))[0].size()
+    # Ugly Python version 5: return next(filter(lambda f: f.size() >= needed_space, flatten_folders)).size()
+    return first(lambda f: f.size() >= needed_space, flatten_folders).size()
 
 
 @pytest.fixture(name="simple_terminal_output")
@@ -120,7 +110,14 @@ def all_terminal_output_fixture() -> list[str]:
 
 
 def test_day07_simple1_sizeof_allfiles(simple_terminal_output: str) -> None:
-    assert sizeof_allfiles(simple_terminal_output) == 48381165
+    root_folder: Folder = parse_terminal_output(simple_terminal_output)
+    sizeof_allfiles: int = root_folder.size()
+    assert sizeof_allfiles == 48381165
+
+
+def test_day07_flat_folders(simple_terminal_output: str) -> None:
+    root_folder: Folder = parse_terminal_output(simple_terminal_output)
+    assert len(flat_folders(root_folder)) == 4
 
 
 def test_day07_simple1_sizeof_folderswith_atmost100000(simple_terminal_output: str) -> None:
