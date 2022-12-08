@@ -64,6 +64,8 @@ def parse_terminal_output(terminal_output: str) -> Folder:
             current_parent.childs.append(Folder(parsed["dir_name"], current_parent, []))  # type: ignore
         elif parsed := parse('{file_size:d} {file_name}', line):
             current_parent.childs.append(File(parsed["file_name"], parsed["file_size"]))  # type: ignore
+        else:
+            raise Exception("Cloud not be parsed: " + line)
 
     return root
 
